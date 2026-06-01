@@ -1,0 +1,9 @@
+[submodule "libmicrohttpd"]
+	path = libmicrohttpd
+	url = https://github.com/Karlson2k/libmicrohttpd.git
+[submodule "json"]
+	path = json
+	url = git@github.com:nlohmann/json.git
+[submodule "libserialport"]
+	path = libserialport
+	url = git@github.com:sigrokproject/libserialport.git
