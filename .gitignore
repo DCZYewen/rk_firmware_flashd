@@ -26,9 +26,6 @@ compile_commands.json
 # Executable
 rk_firmware_flashd
 
-# Uploads (runtime data)
-/tmp/rk_flashd_uploads/
-
 # PID file
 *.pid
 
