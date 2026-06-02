@@ -55,6 +55,7 @@ private:
     std::string handle_reset(SerialDaemon::Owner caller);
     std::string handle_help();
     std::string handle_flash(const std::string& arg);
+    std::string handle_exec(const std::string& arg);
     std::string handle_forcereset();
 
     // Upload protocol handlers

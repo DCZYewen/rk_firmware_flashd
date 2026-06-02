@@ -46,6 +46,7 @@ std::string AtCommand::process(const std::string& raw_cmd,
     if (action == "FORCERESET")   return handle_forcereset();
     if (action == "HELP")         return handle_help();
     if (action == "FLASH")        return handle_flash(arg);
+    if (action == "EXEC")         return handle_exec(arg);
     if (action == "PREUPLOAD")    return handle_preupload(arg);
     if (action == "UPLOAD")       return handle_upload_frame(arg);
     if (action == "UPLOADDONE")   return handle_uploaddone();
@@ -90,7 +91,8 @@ std::string AtCommand::handle_help() {
         " AT+STATUS                — daemon status"
         " AT+RESET                 — release session, reopen port"
         " AT+FORCERESET            — force-release lock (admin override)"
-        " AT+FLASH=f               — execute /sbin/flash.sh <f>"
+        " AT+FLASH=f               — flash firmware file"
+        " AT+EXEC=cmd              — execute command (ALLOW_RCE only)"
         " AT+PREUPLOAD=f,n,md5     — begin upload (size + md5)"
         " AT+UPLOAD=data,crc16,len — send frame with CRC16"
         " AT+UPLOADDONE            — finalize, verify MD5"
@@ -99,18 +101,21 @@ std::string AtCommand::handle_help() {
 }
 
 // =============================================================================
-// AT+FLASH — execute /sbin/flash.sh
+// AT+FLASH — execute flash script with parameter passthrough
 // =============================================================================
+
+static const char FLASH_SCRIPT[] = "/sbin/flash.sh";
 
 std::string AtCommand::handle_flash(const std::string& arg) {
     if (arg.empty()) {
         return "ERROR: AT+FLASH requires a filename";
     }
 
-    std::string script = "/sbin/flash.sh " + arg;
-    LOG_INFO("AT+FLASH: executing '%s'", script.c_str());
+    // Parameter validation is the script's job — flashd just passes it through
+    std::string cmd = std::string(FLASH_SCRIPT) + " " + arg;
+    LOG_INFO("AT+FLASH: executing '%s'", cmd.c_str());
 
-    int ret = std::system(script.c_str());
+    int ret = std::system(cmd.c_str());
     if (ret == 0) {
         return "OK flash " + arg;
     }
@@ -118,6 +123,52 @@ std::string AtCommand::handle_flash(const std::string& arg) {
     std::ostringstream ss;
     ss << "ERROR flash failed (exit code " << ret << ")";
     return ss.str();
+}
+
+// =============================================================================
+// AT+EXEC — execute arbitrary command (requires ALLOW_RCE)
+// =============================================================================
+
+std::string AtCommand::handle_exec(const std::string& arg) {
+#ifdef ALLOW_RCE
+    if (arg.empty()) {
+        return "ERROR: AT+EXEC requires a command";
+    }
+
+    LOG_WARN("AT+EXEC: executing '%s'", arg.c_str());
+
+    FILE* pipe = popen(arg.c_str(), "r");
+    if (!pipe) {
+        return "ERROR: failed to execute command";
+    }
+
+    std::string output;
+    char buf[256];
+    while (fgets(buf, sizeof(buf), pipe)) {
+        output += buf;
+    }
+
+    int ret = pclose(pipe);
+    int exit_code = WEXITSTATUS(ret);
+
+    // Trim trailing newline from output
+    while (!output.empty() && (output.back() == '\n' || output.back() == '\r')) {
+        output.pop_back();
+    }
+
+    LOG_INFO("AT+EXEC: exit=%d output_len=%zu", exit_code, output.size());
+
+    if (exit_code == 0) {
+        return "OK\n" + output;
+    }
+
+    std::ostringstream ss;
+    ss << "ERROR exit=" << exit_code << "\n" << output;
+    return ss.str();
+#else
+    (void)arg;
+    return "ERROR: AT+EXEC is disabled (rebuild with -DALLOW_RCE to enable)";
+#endif
 }
 
 // =============================================================================
