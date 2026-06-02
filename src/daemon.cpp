@@ -92,17 +92,17 @@ bool daemonize(const Config& cfg) {
         if (fd > STDERR_FILENO) close(fd);
     }
 
-    // Write PID file
+    // Write PID file (non-fatal — warn and continue if it fails)
     pid = getpid();
     FILE* pidfile = fopen(cfg.pid_file.c_str(), "w");
-    if (!pidfile) {
-        LOG_ERROR("Failed to create PID file %s: %s", cfg.pid_file.c_str(), strerror(errno));
-        return false;
+    if (pidfile) {
+        fprintf(pidfile, "%d\n", pid);
+        fclose(pidfile);
     }
-    fprintf(pidfile, "%d\n", pid);
-    fclose(pidfile);
+    // Can't use LOG_* here — all FDs are closed, just write to stderr
+    // before it gets redirected (but it's already /dev/null at this point,
+    // so the PID file failure is silent — that's OK, it's non-fatal).
 
-    LOG_INFO("Daemon started, PID %d", pid);
     return true;
 }
 

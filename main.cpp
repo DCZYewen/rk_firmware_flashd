@@ -7,6 +7,8 @@
 
 #include <cstdio>
 #include <cstring>
+#include <climits>
+#include <string>
 #include <unistd.h>
 #include <sys/stat.h>
 
@@ -39,24 +41,45 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    // Resolve relative paths before daemonize() changes cwd to /
+    if (!cfg.log_file.empty() && cfg.log_file[0] != '/') {
+        char resolved[PATH_MAX];
+        if (realpath(".", resolved)) {
+            cfg.log_file = std::string(resolved) + "/" + cfg.log_file;
+        }
+    }
+    if (!cfg.upload_dir.empty() && cfg.upload_dir[0] != '/') {
+        char resolved[PATH_MAX];
+        if (realpath(".", resolved)) {
+            cfg.upload_dir = std::string(resolved) + "/" + cfg.upload_dir;
+        }
+    }
+
     // Create upload directory if it doesn't exist
     if (!mkdir_p(cfg.upload_dir)) {
         fprintf(stderr, "Warning: failed to create upload dir '%s'\n",
                 cfg.upload_dir.c_str());
     }
 
-    // Initialize logger (stderr output for foreground, syslog for daemon)
-    Logger::instance().init(cfg.log_file, !cfg.foreground);
+    // Default log file if none specified (in daemon mode)
+    if (!cfg.foreground && cfg.log_file.empty()) {
+        cfg.log_file = "/var/log/rk_firmware_flashd.log";
+    }
 
-    LOG_INFO("RK Firmware Flash Daemon starting...");
-
-    // Daemonize (unless --foreground)
+    // Daemonize (unless --foreground) — BEFORE logger init so daemonize()
+    // doesn't close the log file descriptor.
     if (!cfg.foreground) {
         if (!daemonize(cfg)) {
-            LOG_ERROR("Failed to daemonize");
+            fprintf(stderr, "Failed to daemonize\n");
             return 1;
         }
-    } else {
+    }
+
+    // Initialize logger (file only — no syslog on buildroot)
+    Logger::instance().init(cfg.log_file);
+
+    LOG_INFO("RK Firmware Flash Daemon starting...");
+    if (cfg.foreground) {
         LOG_INFO("Running in foreground mode");
     }
 
