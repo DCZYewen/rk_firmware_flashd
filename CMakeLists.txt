@@ -74,4 +74,15 @@ if(BUILD_TESTS)
     target_link_libraries(test_logger PRIVATE pthread)
     target_compile_options(test_logger PRIVATE -Wall -Wextra -Wpedantic)
     add_test(NAME logger_tests COMMAND test_logger)
+
+    add_executable(test_checksum
+        test/test_main.cpp
+        test/test_checksum.cpp
+    )
+    target_include_directories(test_checksum PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/test
+    )
+    target_compile_options(test_checksum PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME checksum_tests COMMAND test_checksum)
 endif()
