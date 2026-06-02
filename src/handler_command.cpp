@@ -11,16 +11,17 @@ MHD_Result handleCommand(void* cls, MHD_Connection* connection,
                          ConnectionState* state, bool is_first_call) {
     HttpServer* server = static_cast<HttpServer*>(cls);
     (void)url;
+    (void)is_first_call;
 
-    // First call — expect to accumulate JSON body
-    if (is_first_call) {
-        return MHD_YES;
-    }
-
-    // Accumulate body data
+    // Accumulate body data as it arrives
     if (*upload_data_size > 0) {
         state->cmd_body.append(upload_data, *upload_data_size);
         *upload_data_size = 0;
+        return MHD_YES;
+    }
+
+    // No data yet — keep waiting for body to arrive
+    if (state->cmd_body.empty()) {
         return MHD_YES;
     }
 
