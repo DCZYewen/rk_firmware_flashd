@@ -43,54 +43,52 @@ void SerialDaemon::stop() {
         LOG_INFO("SerialDaemon: port closed");
     }
     // Release global lock on shutdown (force-release, ignore owner).
-    if (owner_ != Owner::NONE) {
-        owner_ = Owner::NONE;
-        global_lock_.unlock();
+    Owner prev = owner_.exchange(Owner::NONE, std::memory_order_acq_rel);
+    if (prev != Owner::NONE) {
         LOG_INFO("SerialDaemon: lock force-released on shutdown");
     }
 }
 
 // =============================================================================
-// Global lock (preemptive, non-blocking)
+// Global lock (preemptive, non-blocking) — atomic CAS
 // =============================================================================
 
 bool SerialDaemon::try_acquire(Owner who) {
-    if (!global_lock_.try_lock()) {
-        return false;
+    Owner expected = Owner::NONE;
+    if (owner_.compare_exchange_strong(expected, who,
+                                       std::memory_order_acq_rel)) {
+        LOG_INFO("SerialDaemon: lock acquired by %s",
+                 who == Owner::HTTP ? "HTTP" : "SERIAL");
+        return true;
     }
-    owner_ = who;
-    LOG_INFO("SerialDaemon: lock acquired by %s",
-             who == Owner::HTTP ? "HTTP" : "SERIAL");
-    return true;
+    return false;
 }
 
 void SerialDaemon::release(Owner who) {
-    // Only the owner can release.
-    if (owner_ != who) {
+    Owner expected = who;
+    if (owner_.compare_exchange_strong(expected, Owner::NONE,
+                                       std::memory_order_acq_rel)) {
+        LOG_INFO("SerialDaemon: lock released by %s",
+                 who == Owner::HTTP ? "HTTP" : "SERIAL");
+    } else {
         LOG_WARN("SerialDaemon: release denied — caller is not owner");
-        return;
     }
-    owner_ = Owner::NONE;
-    global_lock_.unlock();
-    LOG_INFO("SerialDaemon: lock released by %s",
-             who == Owner::HTTP ? "HTTP" : "SERIAL");
 }
 
 void SerialDaemon::force_release() {
-    if (owner_ != Owner::NONE) {
-        std::string who = (owner_ == Owner::HTTP) ? "HTTP" : "SERIAL";
-        owner_ = Owner::NONE;
-        global_lock_.unlock();
+    Owner prev = owner_.exchange(Owner::NONE, std::memory_order_acq_rel);
+    if (prev != Owner::NONE) {
+        std::string who = (prev == Owner::HTTP) ? "HTTP" : "SERIAL";
         LOG_INFO("SerialDaemon: lock force-released (was %s)", who.c_str());
     }
 }
 
 SerialDaemon::Owner SerialDaemon::owner() const {
-    return owner_;
+    return owner_.load(std::memory_order_acquire);
 }
 
 bool SerialDaemon::is_busy() const {
-    return owner_ != Owner::NONE;
+    return owner_.load(std::memory_order_acquire) != Owner::NONE;
 }
 
 // =============================================================================

@@ -23,6 +23,9 @@ struct ConnectionState {
     RequestType type;
     MHD_PostProcessor* pp;
 
+    // Back-pointer to server (for accessing validator)
+    HttpServer* server;
+
     // Upload state
     std::string upload_filename;
     std::string upload_tmp_path;
@@ -36,13 +39,17 @@ struct ConnectionState {
     std::string upload_dir;
 
     ConnectionState()
-        : type(RequestType::NONE), pp(nullptr), upload_file(nullptr), upload_size(0) {}
+        : type(RequestType::NONE), pp(nullptr), server(nullptr),
+          upload_file(nullptr), upload_size(0) {}
 
     ~ConnectionState();
 };
 
 class HttpServer {
 public:
+    // Filename validator: returns true if name is safe to use.
+    using ValidateFn = std::function<bool(const std::string&)>;
+
     HttpServer(const Config& cfg, SerialDaemon& daemon);
     ~HttpServer();
 
@@ -54,6 +61,10 @@ public:
     const Config& config() const { return cfg_; }
     SerialDaemon& daemon() { return serial_daemon_; }
     std::chrono::steady_clock::time_point start_time() const { return start_time_; }
+
+    // Filename validation
+    void set_validate_filename(ValidateFn fn) { validate_filename_ = std::move(fn); }
+    const ValidateFn& validate_filename() const { return validate_filename_; }
 
     // Send a JSON response
     static MHD_Result sendJson(MHD_Connection* connection,
@@ -79,6 +90,7 @@ private:
     SerialDaemon& serial_daemon_;
     struct MHD_Daemon* mhd_daemon_;
     std::chrono::steady_clock::time_point start_time_;
+    ValidateFn validate_filename_;
 };
 
 // Handler declarations

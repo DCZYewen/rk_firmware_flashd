@@ -21,7 +21,20 @@ ConnectionState::~ConnectionState() {
 
 HttpServer::HttpServer(const Config& cfg, SerialDaemon& daemon)
     : cfg_(cfg), serial_daemon_(daemon),
-      start_time_(std::chrono::steady_clock::now()) {}
+      start_time_(std::chrono::steady_clock::now()) {
+    // Default filename validator: reject path traversal and dangerous names
+    validate_filename_ = [](const std::string& name) -> bool {
+        if (name.empty() || name.size() > 255) return false;
+        if (name == "." || name == "..") return false;
+        if (name.find('/') != std::string::npos) return false;
+        if (name.find('\\') != std::string::npos) return false;
+        if (name.find("..") != std::string::npos) return false;
+        for (char c : name) {
+            if (!isalnum(c) && c != '-' && c != '_' && c != '.') return false;
+        }
+        return true;
+    };
+}
 
 HttpServer::~HttpServer() {
     stop();
@@ -98,6 +111,7 @@ MHD_Result HttpServer::accessHandler(void* cls,
     if (*req_cls == nullptr) {
         ConnectionState* state = new ConnectionState();
         state->upload_dir = self->config().upload_dir;
+        state->server = self;
 
         // Determine request type from URL
         if (strcmp(url, "/api/upload") == 0 && strcmp(method, "POST") == 0) {
@@ -115,6 +129,12 @@ MHD_Result HttpServer::accessHandler(void* cls,
                     ConnectionState* state = static_cast<ConnectionState*>(cls);
 
                     if (filename && key && strcmp(key, "firmware") == 0) {
+                        // Validate filename before accepting
+                        if (state->server && !state->server->validate_filename()(filename)) {
+                            LOG_WARN("POST processor: rejected filename '%s'", filename);
+                            return MHD_YES;  // skip this part, don't open file
+                        }
+
                         // First call with filename — open the output file
                         if (state->upload_tmp_path.empty()) {
                             state->upload_filename = filename;
