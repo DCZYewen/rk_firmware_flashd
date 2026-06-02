@@ -90,8 +90,8 @@ private:
     mutable std::mutex io_mutex_;
 
     // Global lock — only one daemon processes at a time
-    std::mutex global_lock_;
-    Owner owner_ = Owner::NONE;
+    // Uses atomic CAS so force_release() is safe from any thread.
+    std::atomic<Owner> owner_{Owner::NONE};
 
     // Reader thread
     std::thread reader_thread_;
