@@ -15,7 +15,7 @@ class Logger {
 public:
     static Logger& instance();
 
-    void init(const std::string& log_file = "", bool use_syslog = true);
+    void init(const std::string& log_file = "");
     void shutdown();
 
     void set_level(LogLevel level);
@@ -30,7 +30,6 @@ private:
     std::mutex mutex_;
     FILE* log_file_ = nullptr;
     LogLevel level_ = LogLevel::DEBUG;
-    bool syslog_open_ = false;
 };
 
 #define LOG_DEBUG(fmt, ...) do { \

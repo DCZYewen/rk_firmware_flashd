@@ -1,5 +1,4 @@
 #include "logger.h"
-#include <syslog.h>
 #include <cstdarg>
 #include <cstring>
 #include <ctime>
@@ -15,16 +14,6 @@ static const char* level_str(LogLevel lv) {
     return "?????";
 }
 
-static int to_syslog_prio(LogLevel lv) {
-    switch (lv) {
-        case LogLevel::DEBUG: return LOG_DEBUG;
-        case LogLevel::INFO:  return LOG_INFO;
-        case LogLevel::WARN:  return LOG_WARNING;
-        case LogLevel::ERROR: return LOG_ERR;
-    }
-    return LOG_INFO;
-}
-
 Logger& Logger::instance() {
     static Logger inst;
     return inst;
@@ -34,13 +23,8 @@ Logger::~Logger() {
     shutdown();
 }
 
-void Logger::init(const std::string& log_file, bool use_syslog) {
+void Logger::init(const std::string& log_file) {
     std::lock_guard<std::mutex> lock(mutex_);
-
-    if (use_syslog) {
-        openlog("rk_firmware_flashd", LOG_PID | LOG_NDELAY, LOG_DAEMON);
-        syslog_open_ = true;
-    }
 
     if (!log_file.empty()) {
         log_file_ = fopen(log_file.c_str(), "a");
@@ -56,10 +40,6 @@ void Logger::shutdown() {
     if (log_file_) {
         fclose(log_file_);
         log_file_ = nullptr;
-    }
-    if (syslog_open_) {
-        closelog();
-        syslog_open_ = false;
     }
 }
 
@@ -93,10 +73,6 @@ void Logger::log(LogLevel level, const char* file, int line, const std::string& 
 
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // Write to syslog
-    if (syslog_open_) {
-        syslog(to_syslog_prio(level), "%s", msg.c_str());
-    }
 
     // Write to file
     if (log_file_) {
@@ -104,8 +80,8 @@ void Logger::log(LogLevel level, const char* file, int line, const std::string& 
         fflush(log_file_);
     }
 
-    // Write to stderr if foreground (no syslog, no file, or always for debugging)
-    if (!syslog_open_ && !log_file_) {
+    // Write to stderr if no log file (fallback)
+    if (!log_file_) {
         fprintf(stderr, "%s\n", formatted);
     }
 }

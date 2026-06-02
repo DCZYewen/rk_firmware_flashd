@@ -30,7 +30,7 @@ TEST(singleton_returns_same_instance) {
 
 TEST(init_with_file_creates_file) {
     setup();
-    Logger::instance().init(TEST_LOG, false);
+    Logger::instance().init(TEST_LOG);
 
     Logger::instance().log(LogLevel::INFO, "test.cpp", 42, "hello from test");
     Logger::instance().shutdown();
@@ -45,7 +45,7 @@ TEST(init_with_file_creates_file) {
 
 TEST(log_level_in_timestamp_format) {
     setup();
-    Logger::instance().init(TEST_LOG, false);
+    Logger::instance().init(TEST_LOG);
 
     Logger::instance().log(LogLevel::DEBUG, "t.cpp", 1, "msg-debug");
     Logger::instance().log(LogLevel::INFO,  "t.cpp", 2, "msg-info");
@@ -64,7 +64,7 @@ TEST(log_level_in_timestamp_format) {
 
 TEST(set_level_filters_messages) {
     setup();
-    Logger::instance().init(TEST_LOG, false);
+    Logger::instance().init(TEST_LOG);
     Logger::instance().set_level(LogLevel::WARN);
 
     Logger::instance().log(LogLevel::DEBUG, "t.cpp", 1, "should-not-appear-debug");
@@ -84,7 +84,7 @@ TEST(set_level_filters_messages) {
 
 TEST(set_level_debug_all_passes) {
     setup();
-    Logger::instance().init(TEST_LOG, false);
+    Logger::instance().init(TEST_LOG);
     Logger::instance().set_level(LogLevel::DEBUG);
 
     Logger::instance().log(LogLevel::DEBUG, "t.cpp", 1, "debug-msg");
@@ -101,7 +101,7 @@ TEST(set_level_debug_all_passes) {
 
 TEST(set_level_error_only) {
     setup();
-    Logger::instance().init(TEST_LOG, false);
+    Logger::instance().init(TEST_LOG);
     Logger::instance().set_level(LogLevel::ERROR);
 
     Logger::instance().log(LogLevel::DEBUG, "t.cpp", 1, "nope-debug");
@@ -121,7 +121,7 @@ TEST(set_level_error_only) {
 
 TEST(log_macros_work) {
     setup();
-    Logger::instance().init(TEST_LOG, false);
+    Logger::instance().init(TEST_LOG);
     Logger::instance().set_level(LogLevel::DEBUG);
 
     LOG_DEBUG("macro debug %d", 1);
@@ -141,7 +141,7 @@ TEST(log_macros_work) {
 
 TEST(timestamp_format_is_correct) {
     setup();
-    Logger::instance().init(TEST_LOG, false);
+    Logger::instance().init(TEST_LOG);
 
     Logger::instance().log(LogLevel::INFO, "t.cpp", 1, "ts-test");
     Logger::instance().shutdown();
@@ -157,7 +157,7 @@ TEST(timestamp_format_is_correct) {
 
 TEST(file_path_shortening) {
     setup();
-    Logger::instance().init(TEST_LOG, false);
+    Logger::instance().init(TEST_LOG);
 
     Logger::instance().log(LogLevel::INFO, "/home/user/project/src/main.cpp", 100, "path-test");
     Logger::instance().shutdown();
@@ -171,7 +171,7 @@ TEST(file_path_shortening) {
 
 TEST(shutdown_closes_file_gracefully) {
     setup();
-    Logger::instance().init(TEST_LOG, false);
+    Logger::instance().init(TEST_LOG);
 
     Logger::instance().log(LogLevel::INFO, "t.cpp", 1, "before-shutdown");
     Logger::instance().shutdown();
@@ -186,11 +186,11 @@ TEST(reinit_after_shutdown_works) {
     unlink(TEST_LOG);
 
     Logger::instance().shutdown();
-    Logger::instance().init(TEST_LOG, false);
+    Logger::instance().init(TEST_LOG);
     Logger::instance().log(LogLevel::INFO, "t.cpp", 1, "cycle-1");
     Logger::instance().shutdown();
 
-    Logger::instance().init(TEST_LOG, false);
+    Logger::instance().init(TEST_LOG);
     Logger::instance().log(LogLevel::INFO, "t.cpp", 2, "cycle-2");
     Logger::instance().shutdown();
 
@@ -203,7 +203,7 @@ TEST(reinit_after_shutdown_works) {
 
 TEST(multiple_messages_appended) {
     setup();
-    Logger::instance().init(TEST_LOG, false);
+    Logger::instance().init(TEST_LOG);
 
     for (int i = 0; i < 10; i++) {
         Logger::instance().log(LogLevel::INFO, "t.cpp", i,

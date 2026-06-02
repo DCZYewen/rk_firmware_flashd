@@ -13,7 +13,7 @@ void print_usage(const char* program) {
         "  --serial-device <path>  Serial device path (optional, disabled if omitted)\n"
         "  --baud-rate <rate>      Serial baud rate (default: 115200)\n"
         "  --upload-dir <dir>      Upload directory (default: /tmp/rk_flashd_uploads)\n"
-        "  --log-file <path>       Log file path (optional, logs to syslog + stderr)\n"
+        "  --log-file <path>       Log file path (optional, logs to stderr if omitted)\n"
         "  --pid-file <path>       PID file path (default: /var/run/rk_firmware_flashd.pid)\n"
         "  --foreground            Run in foreground (do not daemonize)\n"
         "  --help                  Show this help message\n"
