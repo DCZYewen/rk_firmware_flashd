@@ -7,30 +7,34 @@
 // handled locally by the daemon — nothing is relayed to the device.
 //
 // Command set:
-//   AT+STATUS          → daemon status (uptime, serial state, etc.)
-//   AT+RESET           → release session lock, reopen serial port
-//   AT+FLASH=<file>    → execute /sbin/flash.sh <file>
-//   AT+UPLOAD=<file>,<size>
-//                     → begin storing firmware (serial upload protocol)
-//   AT+UPLOAD=<file>,<offset>,<data>
-//                     → store a firmware slice
-//   AT+UPLOAD=<file>,END
-//                     → finish upload, write to disk
-//   AT+FORCERESET      → force-release session lock (admin override)
-//   AT+HELP            → list available commands
-//   anything else      → ERROR: unknown command
+//   AT+STATUS               → daemon status
+//   AT+RESET                → release session lock
+//   AT+FORCERESET           → force-release session lock (admin override)
+//   AT+FLASH=<file>         → execute /sbin/flash.sh <file>
+//   AT+HELP                 → list available commands
 //
-// Serial upload protocol (the "stupid" way):
-//   1. Client sends:  AT+UPLOAD=fw.bin,102400
-//   2. Daemon prepares to receive 102400 bytes
-//   3. Client sends slices:  AT+UPLOAD=fw.bin,0,<1024 bytes binary>
-//                            AT+UPLOAD=fw.bin,1024,<1024 bytes binary>
-//                            ...
-//   4. Client sends:  AT+UPLOAD=fw.bin,END
-//   5. Daemon writes complete file to disk, responds OK
+// Firmware upload protocol (with integrity verification):
+//   Phase 1 — Handshake:
+//     AT+PREUPLOAD=<file>,<total_bytes>,<md5hex>
+//     Daemon → OK READY
+//
+//   Phase 2 — Data frames:
+//     AT+UPLOAD=<hex_data>,<crc16hex>,<frame_len>
+//     Daemon → OK <bytes_received>   (CRC matches)
+//     Daemon → ERROR CRC mismatch   (CRC fails, client should resend frame)
+//
+//   Phase 3 — Finalize:
+//     AT+UPLOADDONE
+//     Daemon → OK <file> <size>      (MD5 matches)
+//     Daemon → ERROR MD5 mismatch    (MD5 fails)
+//
+//   Abort at any time:
+//     AT+UPLOADCANCEL
+//     Daemon → OK (upload state cleared)
 // =============================================================================
 
 #include "serial_daemon.h"
+#include "checksum.h"
 
 #include <cstdint>
 #include <string>
@@ -41,28 +45,36 @@ public:
     explicit AtCommand(SerialDaemon& daemon);
 
     // Process an AT command from a given source.
-    // caller indicates who is invoking (HTTP or SERIAL).
-    // AT+RESET only works if caller matches the lock owner.
     std::string process(const std::string& raw_cmd,
                         SerialDaemon::Owner caller,
                         int timeout_ms = 5000);
 
 private:
-    // Local commands (processed by the daemon itself)
+    // Command handlers
     std::string handle_status();
     std::string handle_reset(SerialDaemon::Owner caller);
     std::string handle_help();
     std::string handle_flash(const std::string& arg);
-    std::string handle_upload(const std::string& arg);
     std::string handle_forcereset();
 
-    // Upload state (for serial upload protocol)
+    // Upload protocol handlers
+    std::string handle_preupload(const std::string& arg);
+    std::string handle_upload_frame(const std::string& arg);
+    std::string handle_uploaddone();
+    std::string handle_uploadcancel();
+
+    // Upload state
     bool upload_active_ = false;
     std::string upload_filename_;
     std::string upload_tmp_path_;
     uint64_t upload_expected_size_ = 0;
     uint64_t upload_received_ = 0;
+    uint32_t upload_frame_count_ = 0;
     FILE* upload_file_ = nullptr;
+
+    // Integrity state
+    std::string upload_expected_md5_;      // MD5 of entire file (from PREUPLOAD)
+    MD5 upload_md5_ctx_;                   // incremental MD5 accumulator
 
     void upload_reset();
 

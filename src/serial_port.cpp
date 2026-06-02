@@ -77,6 +77,8 @@ bool SerialPort::readLine(std::string& response, int timeout_ms) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!port_) return false;
 
+    static const size_t MAX_LINE_LEN = 8192;
+
     response.clear();
     read_buf_.clear();
 
@@ -97,6 +99,14 @@ bool SerialPort::readLine(std::string& response, int timeout_ms) {
                 if (!response.empty() && response.back() == '\r') {
                     response.pop_back();
                 }
+
+                // Reject lines exceeding max length
+                if (response.size() > MAX_LINE_LEN) {
+                    LOG_WARN("Serial RX: line too long (%zu bytes), discarding", response.size());
+                    response.clear();
+                    return false;
+                }
+
                 LOG_DEBUG("Serial RX: %s", response.c_str());
                 return true;
             }
