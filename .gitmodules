@@ -7,3 +7,6 @@
 [submodule "libserialport"]
 	path = libserialport
 	url = git@github.com:sigrokproject/libserialport.git
+[submodule "tiny-AES-c"]
+	path = tiny-AES-c
+	url = git@github.com:kokke/tiny-AES-c.git
