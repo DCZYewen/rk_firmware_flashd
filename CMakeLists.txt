@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(rk_firmware_flashd VERSION 0.1.0 LANGUAGES CXX)
+project(rk_firmware_flashd VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -85,4 +85,17 @@ if(BUILD_TESTS)
     )
     target_compile_options(test_checksum PRIVATE -Wall -Wextra -Wpedantic)
     add_test(NAME checksum_tests COMMAND test_checksum)
+
+    add_executable(test_aes
+        test/test_main.cpp
+        test/test_aes.cpp
+        ${CMAKE_SOURCE_DIR}/tiny-AES-c/aes.c
+    )
+    target_include_directories(test_aes PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/test
+        ${CMAKE_SOURCE_DIR}/tiny-AES-c
+    )
+    target_compile_options(test_aes PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME aes_tests COMMAND test_aes)
 endif()
