@@ -22,7 +22,8 @@ pkg_check_modules(LIBSERIALPORT REQUIRED libserialport)
 
 # --- Collect source files ---
 file(GLOB SOURCES "src/*.cpp")
-list(APPEND SOURCES "main.cpp")
+file(GLOB HANDLER_SOURCES "src/at_handler/*.cpp")
+list(APPEND SOURCES ${HANDLER_SOURCES} "main.cpp")
 
 # --- Build target ---
 add_executable(${PROJECT_NAME} ${SOURCES})
