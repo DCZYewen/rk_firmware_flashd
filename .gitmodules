@@ -1,12 +1,12 @@
-[submodule "libmicrohttpd"]
-	path = libmicrohttpd
+[submodule "3rd_party/libmicrohttpd"]
+	path = 3rd_party/libmicrohttpd
 	url = https://github.com/Karlson2k/libmicrohttpd.git
-[submodule "json"]
-	path = json
-	url = git@github.com:nlohmann/json.git
-[submodule "libserialport"]
-	path = libserialport
-	url = git@github.com:sigrokproject/libserialport.git
-[submodule "tiny-AES-c"]
-	path = tiny-AES-c
-	url = git@github.com:kokke/tiny-AES-c.git
+[submodule "3rd_party/json"]
+	path = 3rd_party/json
+	url = https://github.com/nlohmann/json.git
+[submodule "3rd_party/libserialport"]
+	path = 3rd_party/libserialport
+	url = https://github.com/sigrokproject/libserialport.git
+[submodule "3rd_party/tiny-AES-c"]
+	path = 3rd_party/tiny-AES-c
+	url = https://github.com/kokke/tiny-AES-c.git

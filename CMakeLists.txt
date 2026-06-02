@@ -32,9 +32,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${MHD_INCLUDE_DIRS}
     ${LIBSERIALPORT_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}/libmicrohttpd/src/include
-    ${CMAKE_SOURCE_DIR}/libserialport/include
-    ${CMAKE_SOURCE_DIR}/json/include
+    ${CMAKE_SOURCE_DIR}/3rd_party/libmicrohttpd/src/include
+    ${CMAKE_SOURCE_DIR}/3rd_party/libserialport/include
+    ${CMAKE_SOURCE_DIR}/3rd_party/json/include
 )
 
 target_link_directories(${PROJECT_NAME} PRIVATE
@@ -89,12 +89,12 @@ if(BUILD_TESTS)
     add_executable(test_aes
         test/test_main.cpp
         test/test_aes.cpp
-        ${CMAKE_SOURCE_DIR}/tiny-AES-c/aes.c
+        ${CMAKE_SOURCE_DIR}/3rd_party/tiny-AES-c/aes.c
     )
     target_include_directories(test_aes PRIVATE
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/test
-        ${CMAKE_SOURCE_DIR}/tiny-AES-c
+        ${CMAKE_SOURCE_DIR}/3rd_party/tiny-AES-c
     )
     target_compile_options(test_aes PRIVATE -Wall -Wextra -Wpedantic)
     add_test(NAME aes_tests COMMAND test_aes)
