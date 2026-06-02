@@ -31,3 +31,6 @@ rk_firmware_flashd
 
 # Logs
 *.log
+
+# Plans and Schematics
+project/
