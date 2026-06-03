@@ -39,11 +39,15 @@ std::string AtCommand::process(const std::string& raw_cmd,
 
     // --- All commands handled locally by the daemon ---
     if (action == "STATUS")       return handle_status();
+    if (action == "VERSION")      return handle_version();
     if (action == "RESET")        return handle_reset(caller);
     if (action == "FORCERESET")   return handle_forcereset();
     if (action == "HELP")         return handle_help();
     if (action == "FLASH")        return handle_flash(arg);
     if (action == "EXEC")         return handle_exec(arg);
+    if (action == "REBOOT")       return handle_reboot();
+    if (action == "DECRYPT")      return handle_decrypt(arg);
+    if (action == "VERIFY")       return handle_verify(arg);
     if (action == "PREUPLOAD")    return handle_preupload(arg);
     if (action == "UPLOAD")       return handle_upload_frame(arg);
     if (action == "UPLOADDONE")   return handle_uploaddone();

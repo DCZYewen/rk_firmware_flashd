@@ -52,11 +52,15 @@ public:
 private:
     // Command handlers
     std::string handle_status();
+    std::string handle_version();
     std::string handle_reset(SerialDaemon::Owner caller);
     std::string handle_help();
     std::string handle_flash(const std::string& arg);
     std::string handle_exec(const std::string& arg);
     std::string handle_forcereset();
+    std::string handle_reboot();
+    std::string handle_decrypt(const std::string& arg);
+    std::string handle_verify(const std::string& arg);
 
     // Upload protocol handlers
     std::string handle_preupload(const std::string& arg);
