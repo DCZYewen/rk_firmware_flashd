@@ -63,9 +63,10 @@ endif()
 # =============================================================================
 # Sources
 # =============================================================================
-file(GLOB MAIN_SOURCES    "src/*.cpp")
-file(GLOB HANDLER_SOURCES "src/at_handler/*.cpp")
-set(ALL_SOURCES ${MAIN_SOURCES} ${HANDLER_SOURCES} main.cpp
+file(GLOB MAIN_SOURCES     "src/*.cpp")
+file(GLOB AT_HANDLER_SOURCES  "src/at_handler/*.cpp")
+file(GLOB HTTP_HANDLER_SOURCES "src/http_handler/*.cpp")
+set(ALL_SOURCES ${MAIN_SOURCES} ${AT_HANDLER_SOURCES} ${HTTP_HANDLER_SOURCES} main.cpp
     ${CMAKE_SOURCE_DIR}/3rd_party/tiny-AES-c/aes.c)
 
 # =============================================================================
