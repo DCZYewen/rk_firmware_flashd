@@ -159,7 +159,7 @@ TEST(at_flash_no_args_fails) {
 
     std::string resp = at.process("AT+FLASH", SerialDaemon::Owner::HTTP);
     ASSERT_TRUE(resp.find("ERROR") != std::string::npos);
-    ASSERT_TRUE(resp.find("requires a filename") != std::string::npos);
+    ASSERT_TRUE(resp.find("requires <file>") != std::string::npos);
     cleanup();
     PASS();
 }

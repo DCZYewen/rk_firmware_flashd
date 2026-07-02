@@ -15,23 +15,21 @@
 #include <sstream>
 #include <map>
 
-// Mode name → script path mapping (add new modes here)
-static const std::map<std::string, std::string> FLASH_SCRIPTS = {
-    {"FULL",    "/sbin/flash_full.sh"},
-    {"PARTIAL", "/sbin/flash_partial.sh"},
-    {"ASSETS",  "/sbin/flash_assets.sh"},
-};
-
-static const std::string DEFAULT_MODE = "FULL";
-
 std::string AtCommand::handle_flash(const std::string& arg) {
     if (arg.empty()) {
         return "ERROR: AT+FLASH requires <file>[,MODE]";
     }
 
+    // Mode name → script path mapping (function-local for safe static init order)
+    static const std::map<std::string, std::string> FLASH_SCRIPTS = {
+        {"FULL",    "/sbin/flash_full.sh"},
+        {"PARTIAL", "/sbin/flash_partial.sh"},
+        {"ASSETS",  "/sbin/flash_assets.sh"},
+    };
+
     // Parse: file[,mode]
     std::string filename;
-    std::string mode = DEFAULT_MODE;
+    std::string mode = "FULL";
 
     auto comma = arg.find(',');
     if (comma == std::string::npos) {
