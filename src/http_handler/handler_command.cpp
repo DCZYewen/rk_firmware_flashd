@@ -81,7 +81,9 @@ MHD_Result handleCommand(void* cls, MHD_Connection* connection,
         return HttpServer::sendJson(connection, 200, resp.dump());
 
     } catch (const json::parse_error& e) {
-        return HttpServer::sendJson(connection, 400,
-            std::string(R"({"status":"error","message":"Invalid JSON: ")") + e.what() + "\"}");
+        json err;
+        err["status"] = "error";
+        err["message"] = std::string("Invalid JSON: ") + e.what();
+        return HttpServer::sendJson(connection, 400, err.dump());
     }
 }
