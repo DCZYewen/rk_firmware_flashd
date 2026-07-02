@@ -106,6 +106,7 @@ MHD_Result HttpServer::accessHandler(void* cls,
                                       size_t* upload_data_size,
                                       void** req_cls) {
     HttpServer* self = static_cast<HttpServer*>(cls);
+    (void)version;
 
     // First call — initialize connection state
     if (*req_cls == nullptr) {

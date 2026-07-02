@@ -10,6 +10,7 @@ MHD_Result handleCommand(void* cls, MHD_Connection* connection,
                          const char* upload_data, size_t* upload_data_size,
                          ConnectionState* state, bool is_first_call) {
     HttpServer* server = static_cast<HttpServer*>(cls);
+    (void)method;
     (void)url;
     (void)is_first_call;
 
