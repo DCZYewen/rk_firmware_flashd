@@ -29,6 +29,11 @@ rk_firmware_flashd
 # PID file
 *.pid
 
+# clangd index & cache
+.cache/
+.clangd/
+compile_commands.json
+
 # Logs
 *.log
 
