@@ -44,6 +44,7 @@ std::string AtCommand::process(const std::string& raw_cmd,
     if (action == "FORCERESET")   return handle_forcereset();
     if (action == "HELP")         return handle_help();
     if (action == "FLASH")        return handle_flash(arg);
+    if (action == "TRYFLASHDONE") return handle_flashdone();
     if (action == "EXEC")         return handle_exec(arg);
     if (action == "REBOOT")       return handle_reboot();
     if (action == "DECRYPT")      return handle_decrypt(arg);

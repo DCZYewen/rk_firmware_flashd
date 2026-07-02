@@ -15,6 +15,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 cd "$SCRIPT_DIR"
 
+echo "=== Making scripts executable ==="
+chmod +x script/*.sh 2>/dev/null || true
+
 echo "=== Building tests (RCE=${ENABLE_RCE}, REBOOT=${ENABLE_REBOOT}) ==="
 rm -rf "$BUILD_DIR/CMakeCache.txt" "$BUILD_DIR/CMakeFiles"
 cmake -B "$BUILD_DIR" \

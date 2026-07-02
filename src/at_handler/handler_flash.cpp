@@ -1,13 +1,17 @@
 // =============================================================================
-// handler_flash.cpp — AT+FLASH
+// handler_flash.cpp — AT+FLASH (deferred-exec), AT+TRYFLASHDONE
 //
-//   AT+FLASH=<file>              → flash with default mode (FULL)
-//   AT+FLASH=<file>,<mode>       → flash with specified mode
+// Model: submit stores the command; first poll actually runs it.
+// No background threads — the poll is synchronous but the caller
+// sees the same "submit → poll" pattern.
 //
-// Supported modes (extend the map to add more):
-//   FULL     → /sbin/flash_full.sh
-//   PARTIAL  → /sbin/flash_partial.sh
-//   ASSETS   → /sbin/flash_assets.sh
+//   AT+FLASH=<file>[,<mode>]   → store cmd, return immediately
+//   AT+TRYFLASHDONE             → run on first call, return result
+//
+// Supported modes:
+//   FULL     → flash_full.sh
+//   PARTIAL  → flash_partial.sh
+//   ASSETS   → flash_assets.sh
 // =============================================================================
 
 #include "at_command.h"
@@ -15,20 +19,75 @@
 #include <sstream>
 #include <map>
 #include <cstdio>
+#include <cstdlib>
+#include <chrono>
+
+static constexpr long ASYNC_TIMEOUT_SEC = 60;
+
+struct FlashOp {
+    bool pending = false;
+    bool done = false;
+    int exit_code = -1;
+    std::string output;
+    std::string cmd;
+    std::chrono::steady_clock::time_point start_time;
+
+    void reset() {
+        pending = false;
+        done = false;
+        exit_code = -1;
+        output.clear();
+        cmd.clear();
+    }
+};
+
+static FlashOp& flash_op() {
+    static FlashOp op;
+    return op;
+}
+
+// Run the command via popen, fill exit_code + output, mark done.
+static void run_flash(FlashOp& op) {
+    op.start_time = std::chrono::steady_clock::now();
+
+    FILE* pipe = popen(op.cmd.c_str(), "r");
+    if (!pipe) {
+        LOG_ERROR("flash: popen failed");
+        op.exit_code = -1;
+        op.done = true;
+        return;
+    }
+
+    char buf[256];
+    while (fgets(buf, sizeof(buf), pipe)) {
+        op.output += buf;
+    }
+    while (!op.output.empty() &&
+           (op.output.back() == '\n' || op.output.back() == '\r'))
+        op.output.pop_back();
+
+    int ret = pclose(pipe);
+    op.exit_code = WEXITSTATUS(ret);
+    op.done = true;
+
+    LOG_INFO("flash done: exit=%d output='%s'", op.exit_code, op.output.c_str());
+}
+
+// =============================================================================
+// AT+FLASH — validate args, store cmd, return immediately
+// =============================================================================
 
 std::string AtCommand::handle_flash(const std::string& arg) {
     if (arg.empty()) {
         return "ERROR: AT+FLASH requires <file>[,MODE]";
     }
 
-    // Mode name → script name mapping
     static const std::map<std::string, std::string> FLASH_SCRIPTS = {
         {"FULL",    "flash_full.sh"},
         {"PARTIAL", "flash_partial.sh"},
         {"ASSETS",  "flash_assets.sh"},
     };
 
-    // Parse: file[,mode]
     std::string filename;
     std::string mode = "FULL";
 
@@ -44,7 +103,6 @@ std::string AtCommand::handle_flash(const std::string& arg) {
         return "ERROR: AT+FLASH filename cannot be empty";
     }
 
-    // Look up mode in the map
     auto it = FLASH_SCRIPTS.find(mode);
     if (it == FLASH_SCRIPTS.end()) {
         std::string valid;
@@ -55,33 +113,48 @@ std::string AtCommand::handle_flash(const std::string& arg) {
         return "ERROR: unknown flash mode '" + mode + "' (valid: " + valid + ")";
     }
 
-    std::string cmd = daemon_.config().scripts_dir + "/" + it->second + " " + filename;
-    LOG_INFO("AT+FLASH [%s]: executing '%s'", mode.c_str(), cmd.c_str());
-
-    FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) {
-        LOG_ERROR("AT+FLASH: popen failed");
-        return "ERROR: failed to execute flash script";
+    FlashOp& op = flash_op();
+    if (op.pending || op.done) {
+        return "ERROR: flash already in progress, use AT+TRYFLASHDONE to poll";
     }
 
-    std::string output;
-    char buf[256];
-    while (fgets(buf, sizeof(buf), pipe)) {
-        output += buf;
+    op.cmd = daemon_.config().scripts_dir + "/" + it->second + " " + filename;
+    op.pending = true;
+    op.done = false;
+    op.output.clear();
+    op.exit_code = -1;
+
+    LOG_INFO("AT+FLASH [%s]: submitted '%s'", mode.c_str(), op.cmd.c_str());
+    return "OK submitted: " + op.cmd;
+}
+
+// =============================================================================
+// AT+TRYFLASHDONE — run on first call, poll thereafter
+// =============================================================================
+
+std::string AtCommand::handle_flashdone() {
+    FlashOp& op = flash_op();
+
+    if (!op.pending && !op.done) {
+        return "ERROR: no pending flash operation";
     }
-    while (!output.empty() && (output.back() == '\n' || output.back() == '\r'))
-        output.pop_back();
 
-    int ret = pclose(pipe);
-    int exit_code = WEXITSTATUS(ret);
-
-    LOG_INFO("AT+FLASH [%s]: exit=%d output='%s'", mode.c_str(), exit_code, output.c_str());
-
-    if (exit_code == 0) {
-        return "OK " + cmd + " " + output;
+    // First poll — actually run the command now
+    if (op.pending && !op.done) {
+        run_flash(op);
+        op.pending = false;
     }
 
-    std::ostringstream ss;
-    ss << "ERROR " << cmd << " failed (exit=" << exit_code << ") " << output;
-    return ss.str();
+    // Done — return result
+    std::string result;
+    if (op.exit_code == 0) {
+        result = "OK " + op.cmd + " " + op.output;
+    } else {
+        result = "ERROR " + op.cmd + " failed (exit="
+                 + std::to_string(op.exit_code) + ") " + op.output;
+    }
+
+    LOG_INFO("AT+TRYFLASHDONE: %s", result.c_str());
+    op.reset();
+    return result;
 }

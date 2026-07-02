@@ -164,16 +164,77 @@ TEST(at_flash_no_args_fails) {
     PASS();
 }
 
-TEST(at_flash_passes_param_to_script) {
+// Helper: submit + poll to run the flash and return result.
+// First poll executes the stored command synchronously.
+static std::string run_flash(AtCommand& at, const std::string& arg) {
+    at.process("AT+FLASH=" + arg, SerialDaemon::Owner::HTTP);
+    return at.process("AT+TRYFLASHDONE", SerialDaemon::Owner::HTTP);
+}
+
+TEST(at_flash_submit_returns_stores_cmd) {
     setup();
     Config cfg = make_test_config();
     SerialDaemon daemon(cfg);
     AtCommand at(daemon);
 
-    // Script won't exist, but we verify the command is constructed correctly
     std::string resp = at.process("AT+FLASH=test.bin", SerialDaemon::Owner::HTTP);
-    ASSERT_TRUE(resp.find("ERROR") != std::string::npos);
-    ASSERT_TRUE(resp.find("failed (exit=") != std::string::npos);
+    ASSERT_TRUE(resp.find("submitted") != std::string::npos);
+    // Clean up by polling (executes the flash)
+    at.process("AT+TRYFLASHDONE", SerialDaemon::Owner::HTTP);
+    cleanup();
+    PASS();
+}
+
+TEST(at_flash_first_poll_executes_and_returns) {
+    setup();
+    Config cfg = make_test_config();
+    SerialDaemon daemon(cfg);
+    AtCommand at(daemon);
+
+    std::string resp = run_flash(at, "test.bin");
+    ASSERT_TRUE(resp.find("OK") != std::string::npos ||
+                resp.find("ERROR") != std::string::npos);
+    cleanup();
+    PASS();
+}
+
+TEST(at_flash_poll_after_result_resets_state) {
+    setup();
+    Config cfg = make_test_config();
+    SerialDaemon daemon(cfg);
+    AtCommand at(daemon);
+
+    at.process("AT+FLASH=test.bin", SerialDaemon::Owner::HTTP);
+    at.process("AT+TRYFLASHDONE", SerialDaemon::Owner::HTTP);  // first poll runs it
+    std::string resp = at.process("AT+TRYFLASHDONE", SerialDaemon::Owner::HTTP);  // second poll
+    ASSERT_TRUE(resp.find("no pending") != std::string::npos);
+    cleanup();
+    PASS();
+}
+
+TEST(at_flash_poll_no_pending) {
+    setup();
+    Config cfg = make_test_config();
+    SerialDaemon daemon(cfg);
+    AtCommand at(daemon);
+
+    std::string resp = at.process("AT+TRYFLASHDONE", SerialDaemon::Owner::HTTP);
+    ASSERT_TRUE(resp.find("no pending") != std::string::npos);
+    cleanup();
+    PASS();
+}
+
+TEST(at_flash_rejects_concurrent) {
+    setup();
+    Config cfg = make_test_config();
+    SerialDaemon daemon(cfg);
+    AtCommand at(daemon);
+
+    at.process("AT+FLASH=first.bin", SerialDaemon::Owner::HTTP);
+    std::string resp = at.process("AT+FLASH=second.bin", SerialDaemon::Owner::HTTP);
+    ASSERT_TRUE(resp.find("already in progress") != std::string::npos);
+
+    at.process("AT+TRYFLASHDONE", SerialDaemon::Owner::HTTP);  // clean up
     cleanup();
     PASS();
 }
