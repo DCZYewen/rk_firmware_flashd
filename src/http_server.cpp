@@ -128,10 +128,18 @@ MHD_Result HttpServer::accessHandler(void* cls,
 
                     ConnectionState* state = static_cast<ConnectionState*>(cls);
 
+                    // Note: the post-processor is called once per multipart field.
+                    // Record non-firmware fields so we can report a specific error.
+                    if (key && strcmp(key, "firmware") != 0) {
+                        state->upload_error = "unexpected field '" + std::string(key) + "' (expected 'firmware')";
+                        return MHD_YES;
+                    }
+
                     if (filename && key && strcmp(key, "firmware") == 0) {
                         // Validate filename before accepting
                         if (state->server && !state->server->validate_filename()(filename)) {
                             LOG_WARN("POST processor: rejected filename '%s'", filename);
+                            state->upload_error = "rejected filename '" + std::string(filename) + "'";
                             return MHD_YES;  // skip this part, don't open file
                         }
 

@@ -38,6 +38,14 @@ struct ConnectionState {
     // Config reference for upload directory
     std::string upload_dir;
 
+    // True after at least one chunk of POST data has been received.
+    // Used to distinguish "waiting for first data" from "done, no file created".
+    bool upload_data_received = false;
+
+    // Set by the post-processor callback when it decides not to open a file.
+    // The handler reads this to provide a specific error reason.
+    std::string upload_error;
+
     ConnectionState()
         : type(RequestType::NONE), pp(nullptr), server(nullptr),
           upload_file(nullptr), upload_size(0) {}

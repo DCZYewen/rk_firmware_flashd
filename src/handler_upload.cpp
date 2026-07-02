@@ -29,6 +29,7 @@ MHD_Result handleUpload(void* cls, MHD_Connection* connection,
     // Feed data to POST processor as it arrives
     if (*upload_data_size > 0) {
         LOG_DEBUG("handleUpload: feeding %zu bytes to post processor", *upload_data_size);
+        state->upload_data_received = true;
         MHD_post_process(state->pp, upload_data, *upload_data_size);
         *upload_data_size = 0;
         return MHD_YES;
@@ -36,8 +37,17 @@ MHD_Result handleUpload(void* cls, MHD_Connection* connection,
 
     // No data this call — check if we've received anything yet
     if (state->upload_size == 0 && !state->upload_file) {
-        // Initial call, nothing received yet — keep waiting
-        return MHD_YES;
+        if (!state->upload_data_received) {
+            // Initial call, nothing received yet — keep waiting
+            return MHD_YES;
+        }
+        // Data was received but no file was created (rejected filename,
+        // wrong field name, etc.) — send error and stop.
+        return HttpServer::sendJson(connection, 400,
+            std::string(R"({"status":"error","message":")")
+            + "Upload failed: "
+            + (state->upload_error.empty() ? "no firmware data" : state->upload_error)
+            + "\"}");
     }
 
     // All data received — finalize
