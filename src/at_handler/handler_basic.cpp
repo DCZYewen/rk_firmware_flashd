@@ -39,7 +39,7 @@ std::string AtCommand::handle_help() {
         " AT+VERSION               — daemon version"
         " AT+RESET                 — release session, reopen port"
         " AT+FORCERESET            — force-release lock (admin override)"
-        " AT+FLASH=f               — flash firmware file"
+        " AT+FLASH=f[,FULL|PARTIAL|ASSETS....] — flash firmware (FULL default)"
         " AT+EXEC=cmd              — execute command (ENABLE_RCE only)"
         " AT+REBOOT                — reboot device (ENABLE_REBOOT only)"
         " AT+VERIFY=f              — compute MD5 of file"
