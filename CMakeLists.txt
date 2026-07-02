@@ -66,8 +66,7 @@ endif()
 file(GLOB MAIN_SOURCES     "src/*.cpp")
 file(GLOB AT_HANDLER_SOURCES  "src/at_handler/*.cpp")
 file(GLOB HTTP_HANDLER_SOURCES "src/http_handler/*.cpp")
-set(ALL_SOURCES ${MAIN_SOURCES} ${AT_HANDLER_SOURCES} ${HTTP_HANDLER_SOURCES} main.cpp
-    ${CMAKE_SOURCE_DIR}/3rd_party/tiny-AES-c/aes.c)
+set(ALL_SOURCES ${MAIN_SOURCES} ${AT_HANDLER_SOURCES} ${HTTP_HANDLER_SOURCES} main.cpp)
 
 # =============================================================================
 # Main executable
@@ -79,7 +78,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/3rd_party/json/include
     ${CMAKE_SOURCE_DIR}/3rd_party/libmicrohttpd/src/include
     ${CMAKE_SOURCE_DIR}/3rd_party/libserialport/include
-    ${CMAKE_SOURCE_DIR}/3rd_party/tiny-AES-c
     ${MHD_INCLUDE_DIRS}
     ${LIBSERIALPORT_INCLUDE_DIRS}
 )
@@ -152,19 +150,6 @@ if(BUILD_TESTS)
     )
     add_test(NAME checksum_tests COMMAND test_checksum)
 
-    # --- test_aes ---
-    add_executable(test_aes
-        test/test_main.cpp
-        test/test_aes.cpp
-        ${CMAKE_SOURCE_DIR}/3rd_party/tiny-AES-c/aes.c
-    )
-    target_include_directories(test_aes PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/test
-        ${CMAKE_SOURCE_DIR}/3rd_party/tiny-AES-c
-    )
-    add_test(NAME aes_tests COMMAND test_aes)
-
     # --- test_at_command ---
     file(GLOB AT_HANDLER_SOURCES "src/at_handler/*.cpp")
     add_executable(test_at_command
@@ -176,13 +161,11 @@ if(BUILD_TESTS)
         src/serial_port.cpp
         src/logger.cpp
         src/config.cpp
-        ${CMAKE_SOURCE_DIR}/3rd_party/tiny-AES-c/aes.c
     )
     target_include_directories(test_at_command PRIVATE
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/test
         ${CMAKE_SOURCE_DIR}/3rd_party/json/include
-        ${CMAKE_SOURCE_DIR}/3rd_party/tiny-AES-c
         ${LIBSERIALPORT_INCLUDE_DIRS}
         ${CMAKE_SOURCE_DIR}/3rd_party/libserialport/include
     )

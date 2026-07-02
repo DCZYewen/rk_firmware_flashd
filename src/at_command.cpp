@@ -47,7 +47,6 @@ std::string AtCommand::process(const std::string& raw_cmd,
     if (action == "TRYFLASHDONE") return handle_flashdone();
     if (action == "EXEC")         return handle_exec(arg);
     if (action == "REBOOT")       return handle_reboot();
-    if (action == "DECRYPT")      return handle_decrypt(arg);
     if (action == "VERIFY")       return handle_verify(arg);
     if (action == "PREUPLOAD")    return handle_preupload(arg);
     if (action == "UPLOAD")       return handle_upload_frame(arg);

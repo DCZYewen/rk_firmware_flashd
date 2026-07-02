@@ -36,9 +36,8 @@ void setup_signals() {
     sigaction(SIGTERM, &sa, nullptr);
     sigaction(SIGINT, &sa, nullptr);
     sigaction(SIGHUP, &sa, nullptr);
-
-    // Ignore SIGCHLD to auto-reap children
-    signal(SIGCHLD, SIG_IGN);
+    // SIGCHLD left as SIG_DFL — popen/pclose manage their own children.
+    // SIG_IGN breaks pclose on musl (Buildroot).
 }
 
 bool daemonize(const Config& cfg) {

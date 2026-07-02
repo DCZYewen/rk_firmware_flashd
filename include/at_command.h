@@ -60,7 +60,6 @@ private:
     std::string handle_exec(const std::string& arg);
     std::string handle_forcereset();
     std::string handle_reboot();
-    std::string handle_decrypt(const std::string& arg);
     std::string handle_verify(const std::string& arg);
 
     // Upload protocol handlers

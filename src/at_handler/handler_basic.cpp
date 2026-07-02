@@ -4,7 +4,9 @@
 
 #include "at_command.h"
 #include "logger.h"
+#include "checksum.h"
 #include <sstream>
+#include <cstdio>
 
 std::string AtCommand::handle_status() {
     auto now = std::chrono::steady_clock::now();
@@ -44,10 +46,45 @@ std::string AtCommand::handle_help() {
         " AT+EXEC=cmd              — execute command (ENABLE_RCE only)"
         " AT+REBOOT                — reboot device (ENABLE_REBOOT only)"
         " AT+VERIFY=f              — compute MD5 of file"
-        " AT+DECRYPT=in,out        — decrypt AES256 firmware"
         " AT+PREUPLOAD=f,n,md5     — begin upload (size + md5)"
         " AT+UPLOAD=data,crc16,len — send frame with CRC16"
         " AT+UPLOADDONE            — finalize, verify MD5"
         " AT+UPLOADCANCEL          — abort current upload"
         " AT+HELP                  — this help";
+}
+
+// =============================================================================
+// AT+VERIFY=<file> — compute MD5 of a file
+// =============================================================================
+
+std::string AtCommand::handle_verify(const std::string& arg) {
+    if (arg.empty()) {
+        return "ERROR: AT+VERIFY requires a filename";
+    }
+
+    if (arg.find("..") != std::string::npos) {
+        return "ERROR: invalid filename";
+    }
+
+    std::string filepath = daemon_.config().upload_dir + "/" + arg;
+
+    FILE* f = fopen(filepath.c_str(), "rb");
+    if (!f) {
+        return "ERROR: cannot open file '" + arg + "'";
+    }
+
+    MD5 md5;
+    char buf[4096];
+    size_t total = 0;
+
+    while (size_t n = fread(buf, 1, sizeof(buf), f)) {
+        md5.update(reinterpret_cast<const uint8_t*>(buf), n);
+        total += n;
+    }
+    fclose(f);
+
+    std::string md5hex = md5.hex();
+    LOG_INFO("AT+VERIFY: %s = %s (%zu bytes)", arg.c_str(), md5hex.c_str(), total);
+
+    return "OK " + md5hex + " " + std::to_string(total);
 }

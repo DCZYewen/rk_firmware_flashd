@@ -7,6 +7,3 @@
 [submodule "3rd_party/libserialport"]
 	path = 3rd_party/libserialport
 	url = https://github.com/sigrokproject/libserialport.git
-[submodule "3rd_party/tiny-AES-c"]
-	path = 3rd_party/tiny-AES-c
-	url = https://github.com/kokke/tiny-AES-c.git
