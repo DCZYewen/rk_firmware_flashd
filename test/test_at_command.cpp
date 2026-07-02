@@ -173,7 +173,7 @@ TEST(at_flash_passes_param_to_script) {
     // Script won't exist, but we verify the command is constructed correctly
     std::string resp = at.process("AT+FLASH=test.bin", SerialDaemon::Owner::HTTP);
     ASSERT_TRUE(resp.find("ERROR") != std::string::npos);
-    ASSERT_TRUE(resp.find("flash failed") != std::string::npos);
+    ASSERT_TRUE(resp.find("failed (exit=") != std::string::npos);
     cleanup();
     PASS();
 }

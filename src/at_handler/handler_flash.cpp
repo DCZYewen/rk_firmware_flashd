@@ -14,17 +14,18 @@
 #include "logger.h"
 #include <sstream>
 #include <map>
+#include <cstdio>
 
 std::string AtCommand::handle_flash(const std::string& arg) {
     if (arg.empty()) {
         return "ERROR: AT+FLASH requires <file>[,MODE]";
     }
 
-    // Mode name → script path mapping (function-local for safe static init order)
+    // Mode name → script name mapping
     static const std::map<std::string, std::string> FLASH_SCRIPTS = {
-        {"FULL",    "/sbin/flash_full.sh"},
-        {"PARTIAL", "/sbin/flash_partial.sh"},
-        {"ASSETS",  "/sbin/flash_assets.sh"},
+        {"FULL",    "flash_full.sh"},
+        {"PARTIAL", "flash_partial.sh"},
+        {"ASSETS",  "flash_assets.sh"},
     };
 
     // Parse: file[,mode]
@@ -46,7 +47,6 @@ std::string AtCommand::handle_flash(const std::string& arg) {
     // Look up mode in the map
     auto it = FLASH_SCRIPTS.find(mode);
     if (it == FLASH_SCRIPTS.end()) {
-        // Build error with list of valid modes
         std::string valid;
         for (auto& kv : FLASH_SCRIPTS) {
             if (!valid.empty()) valid += ", ";
@@ -55,16 +55,33 @@ std::string AtCommand::handle_flash(const std::string& arg) {
         return "ERROR: unknown flash mode '" + mode + "' (valid: " + valid + ")";
     }
 
-    const std::string& script = it->second;
-    std::string cmd = script + " " + filename;
+    std::string cmd = daemon_.config().scripts_dir + "/" + it->second + " " + filename;
     LOG_INFO("AT+FLASH [%s]: executing '%s'", mode.c_str(), cmd.c_str());
 
-    int ret = std::system(cmd.c_str());
-    if (ret == 0) {
-        return "OK flash " + mode + " " + filename;
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) {
+        LOG_ERROR("AT+FLASH: popen failed");
+        return "ERROR: failed to execute flash script";
+    }
+
+    std::string output;
+    char buf[256];
+    while (fgets(buf, sizeof(buf), pipe)) {
+        output += buf;
+    }
+    while (!output.empty() && (output.back() == '\n' || output.back() == '\r'))
+        output.pop_back();
+
+    int ret = pclose(pipe);
+    int exit_code = WEXITSTATUS(ret);
+
+    LOG_INFO("AT+FLASH [%s]: exit=%d output='%s'", mode.c_str(), exit_code, output.c_str());
+
+    if (exit_code == 0) {
+        return "OK " + cmd + " " + output;
     }
 
     std::ostringstream ss;
-    ss << "ERROR flash failed (exit code " << ret << ")";
+    ss << "ERROR " << cmd << " failed (exit=" << exit_code << ") " << output;
     return ss.str();
 }

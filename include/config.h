@@ -8,6 +8,7 @@ struct Config {
     std::string serial_device;            // empty = no serial port
     int baud_rate = 115200;
     std::string upload_dir = "/tmp/rk_flashd_uploads";
+    std::string scripts_dir = "/sbin";
     std::string log_file;
     std::string pid_file = "/var/run/rk_firmware_flashd.pid";
     bool foreground = false;
