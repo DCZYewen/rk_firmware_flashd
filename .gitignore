@@ -39,3 +39,6 @@ compile_commands.json
 
 # Plans and Schematics
 project/
+
+# test in real machine
+real_test/__pycache__
