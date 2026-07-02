@@ -57,25 +57,6 @@ std::string AtCommand::process(const std::string& raw_cmd,
 }
 
 // =============================================================================
-// upload_reset — clean up upload state
-// =============================================================================
-
-void AtCommand::upload_reset() {
-    if (upload_file_) {
-        fclose(upload_file_);
-        upload_file_ = nullptr;
-    }
-    upload_active_ = false;
-    upload_filename_.clear();
-    upload_tmp_path_.clear();
-    upload_expected_size_ = 0;
-    upload_received_ = 0;
-    upload_frame_count_ = 0;
-    upload_expected_md5_.clear();
-    upload_md5_ctx_.reset();
-}
-
-// =============================================================================
 // parse_at — parse AT+<CMD>=<arg>
 // =============================================================================
 

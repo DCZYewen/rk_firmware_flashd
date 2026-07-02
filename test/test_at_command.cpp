@@ -10,6 +10,8 @@
 #include "logger.h"
 #include "config.h"
 #include <cstdlib>
+#include <cstdio>
+#include <cstring>
 #include <unistd.h>
 #include <sys/stat.h>
 
@@ -395,6 +397,67 @@ TEST(at_upload_cancel_cleans_up) {
 
     // Temp file should be removed
     ASSERT_TRUE(access("/tmp/test_at_upload/upload_test.bin.tmp", F_OK) != 0);
+    cleanup();
+    PASS();
+}
+
+// =============================================================================
+// AT+PREUPLOAD → multiple AT+UPLOAD → AT+UPLOADDONE (multipart)
+// =============================================================================
+
+TEST(at_upload_multipart_full_flow) {
+    setup();
+    Config cfg = make_test_config();
+    SerialDaemon daemon(cfg);
+    AtCommand at(daemon);
+
+    // "Hello World!" in 4 frames of 3 bytes
+    const char* frames[] = {"Hel", "lo ", "Wor", "ld!"};
+    size_t frame_sizes[] = {3, 3, 3, 3};
+    const char* frame_hex[] = {"48656c", "6c6f20", "576f72", "6c6421"};
+    int num_frames = 4;
+    size_t total = 12;
+
+    // Compute expected MD5 of "Hello World!"
+    MD5 md5;
+    md5.update(reinterpret_cast<const uint8_t*>("Hello World!"), total);
+    std::string expected_md5 = md5.hex();
+
+    // PREUPLOAD
+    std::string cmd = "AT+PREUPLOAD=multi.bin," + std::to_string(total) + "," + expected_md5;
+    std::string resp = at.process(cmd, SerialDaemon::Owner::HTTP);
+    ASSERT_EQ(resp, "OK READY");
+
+    // Send frames with programmatic CRC
+    for (int i = 0; i < num_frames; i++) {
+        uint16_t crc = crc16_compute(
+            reinterpret_cast<const uint8_t*>(frames[i]), frame_sizes[i]);
+        char crc_hex[5];
+        snprintf(crc_hex, sizeof(crc_hex), "%04X", crc);
+
+        cmd = "AT+UPLOAD=" + std::string(frame_hex[i]) + ","
+            + std::string(crc_hex) + ","
+            + std::to_string(frame_sizes[i]);
+        resp = at.process(cmd, SerialDaemon::Owner::HTTP);
+        ASSERT_TRUE(resp.find("OK") != std::string::npos);
+    }
+
+    // UPLOADDONE
+    resp = at.process("AT+UPLOADDONE", SerialDaemon::Owner::HTTP);
+    ASSERT_TRUE(resp.find("OK multi.bin") != std::string::npos);
+    ASSERT_TRUE(resp.find(expected_md5) != std::string::npos);
+
+    // Verify file content on disk
+    std::string filepath = cfg.upload_dir + "/multi.bin";
+    FILE* f = fopen(filepath.c_str(), "rb");
+    ASSERT_TRUE(f != nullptr);
+    char content[13] = {0};
+    size_t n = fread(content, 1, total, f);
+    fclose(f);
+    ASSERT_EQ(n, total);
+    ASSERT_TRUE(strcmp(content, "Hello World!") == 0);
+
+    unlink(filepath.c_str());
     cleanup();
     PASS();
 }

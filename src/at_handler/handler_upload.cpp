@@ -1,5 +1,8 @@
 // =============================================================================
 // handler_upload.cpp — AT+PREUPLOAD, AT+UPLOAD, AT+UPLOADDONE, AT+UPLOADCANCEL
+//
+// Upload state is stored in a function-local static so it persists across
+// HTTP requests (AtCommand is created per-request).
 // =============================================================================
 
 #include "at_command.h"
@@ -13,19 +16,52 @@
 #include <unistd.h>
 
 // =============================================================================
+// Persistent upload state (same pattern as FlashOp in handler_flash.cpp)
+// =============================================================================
+
+struct UploadState {
+    bool active = false;
+    std::string filename;
+    std::string tmp_path;
+    uint64_t expected_size = 0;
+    uint64_t received = 0;
+    uint32_t frame_count = 0;
+    FILE* file = nullptr;
+    std::string expected_md5;
+    MD5 md5_ctx;
+
+    void reset() {
+        active = false;
+        filename.clear();
+        tmp_path.clear();
+        expected_size = 0;
+        received = 0;
+        frame_count = 0;
+        expected_md5.clear();
+        md5_ctx.reset();
+    }
+};
+
+static UploadState& upload_state() {
+    static UploadState s;
+    return s;
+}
+
+// =============================================================================
 // AT+PREUPLOAD — begin firmware upload with integrity check
 // =============================================================================
 
 std::string AtCommand::handle_preupload(const std::string& arg) {
+    UploadState& u = upload_state();
+
     if (arg.empty()) {
         return "ERROR: AT+PREUPLOAD requires <file>,<size>,<md5>";
     }
 
-    if (upload_active_) {
+    if (u.active) {
         return "ERROR: upload already in progress — send AT+UPLOADCANCEL first";
     }
 
-    // Parse: filename,total_bytes,md5hex
     auto comma1 = arg.find(',');
     if (comma1 == std::string::npos) return "ERROR: missing size and md5";
 
@@ -36,25 +72,21 @@ std::string AtCommand::handle_preupload(const std::string& arg) {
     std::string size_str = arg.substr(comma1 + 1, comma2 - comma1 - 1);
     std::string md5_hex  = arg.substr(comma2 + 1);
 
-    // Validate size
     for (char c : size_str) {
         if (!isdigit(c)) return "ERROR: invalid size";
     }
     uint64_t total_size = strtoull(size_str.c_str(), nullptr, 10);
     if (total_size == 0) return "ERROR: size must be > 0";
 
-    // Validate MD5 (32 hex chars)
     if (md5_hex.size() != 32) return "ERROR: md5 must be 32 hex chars";
     for (char c : md5_hex) {
         if (!isxdigit(c)) return "ERROR: invalid md5 hex";
     }
 
-    // Validate filename
     if (filename.empty() || filename.size() > 255) return "ERROR: invalid filename";
     if (filename.find('/') != std::string::npos) return "ERROR: filename contains /";
     if (filename.find("..") != std::string::npos) return "ERROR: invalid filename";
 
-    // Create temp file
     std::string tmp_name = "upload_" + filename + ".tmp";
     std::string tmp_path = daemon_.config().upload_dir + "/" + tmp_name;
 
@@ -64,18 +96,15 @@ std::string AtCommand::handle_preupload(const std::string& arg) {
         return "ERROR: cannot create temp file";
     }
 
-    // Set upload state
-    upload_active_ = true;
-    upload_filename_ = filename;
-    upload_tmp_path_ = tmp_path;
-    upload_expected_size_ = total_size;
-    upload_received_ = 0;
-    upload_frame_count_ = 0;
-    upload_file_ = f;
-    upload_expected_md5_ = md5_hex;
-
-    // Reset MD5 accumulator
-    upload_md5_ctx_.reset();
+    u.active = true;
+    u.filename = filename;
+    u.tmp_path = tmp_path;
+    u.expected_size = total_size;
+    u.received = 0;
+    u.frame_count = 0;
+    u.file = f;
+    u.expected_md5 = md5_hex;
+    u.md5_ctx.reset();
 
     LOG_INFO("AT+PREUPLOAD: %s, %lu bytes, md5=%s",
              filename.c_str(), (unsigned long)total_size, md5_hex.c_str());
@@ -87,16 +116,16 @@ std::string AtCommand::handle_preupload(const std::string& arg) {
 // =============================================================================
 
 std::string AtCommand::handle_upload_frame(const std::string& arg) {
+    UploadState& u = upload_state();
+
     if (arg.empty()) return "ERROR: AT+UPLOAD requires arguments";
-    if (!upload_active_ || !upload_file_) {
+    if (!u.active || !u.file) {
         return "ERROR: no active upload — send AT+PREUPLOAD first";
     }
 
-    // Find second-to-last comma (before crc16)
     auto last_comma = arg.rfind(',');
     if (last_comma == std::string::npos) return "ERROR: missing crc16 and frame_len";
 
-    // Find third-to-last comma (before hex_data)
     auto prev_comma = arg.rfind(',', last_comma - 1);
     if (prev_comma == std::string::npos) return "ERROR: missing hex_data";
 
@@ -104,19 +133,16 @@ std::string AtCommand::handle_upload_frame(const std::string& arg) {
     std::string crc16_hex  = arg.substr(prev_comma + 1, last_comma - prev_comma - 1);
     std::string len_str    = arg.substr(last_comma + 1);
 
-    // Validate CRC16 (4 hex chars)
     if (crc16_hex.size() != 4) return "ERROR: crc16 must be 4 hex chars";
     for (char c : crc16_hex) {
         if (!isxdigit(c)) return "ERROR: invalid crc16 hex";
     }
 
-    // Validate frame length
     for (char c : len_str) {
         if (!isdigit(c)) return "ERROR: invalid frame length";
     }
     uint32_t frame_len = strtoul(len_str.c_str(), nullptr, 10);
 
-    // Validate hex data
     if (hex_data.size() % 2 != 0) return "ERROR: hex data must have even length";
     size_t bin_len = hex_data.size() / 2;
 
@@ -127,7 +153,6 @@ std::string AtCommand::handle_upload_frame(const std::string& arg) {
         return ss.str();
     }
 
-    // Decode hex to binary
     std::string bin_data(bin_len, '\0');
     for (size_t i = 0; i < bin_len; ++i) {
         unsigned int byte = 0;
@@ -135,7 +160,6 @@ std::string AtCommand::handle_upload_frame(const std::string& arg) {
         bin_data[i] = (char)byte;
     }
 
-    // Verify CRC16
     uint16_t computed_crc = crc16_compute(
         reinterpret_cast<const uint8_t*>(bin_data.data()), bin_len);
     uint16_t expected_crc = (uint16_t)strtoul(crc16_hex.c_str(), nullptr, 16);
@@ -146,35 +170,33 @@ std::string AtCommand::handle_upload_frame(const std::string& arg) {
 
     if (computed_crc != expected_crc) {
         LOG_WARN("AT+UPLOAD: CRC mismatch frame #%u (expected=%04X computed=%04X)",
-                 upload_frame_count_, expected_crc, computed_crc);
-        upload_frame_count_++;
+                 u.frame_count, expected_crc, computed_crc);
+        u.frame_count++;
         std::ostringstream ss;
-        ss << "ERROR CRC mismatch frame " << (upload_frame_count_ - 1)
+        ss << "ERROR CRC mismatch frame " << (u.frame_count - 1)
            << " expected=" << crc16_hex
            << " got=" << computed_crc_hex;
         return ss.str();
     }
 
-    // CRC OK — write to file
-    size_t written = fwrite(bin_data.data(), 1, bin_len, upload_file_);
+    size_t written = fwrite(bin_data.data(), 1, bin_len, u.file);
     if (written != bin_len) {
         LOG_ERROR("AT+UPLOAD: write failed (%zu != %zu)", written, bin_len);
         return "ERROR: write failed";
     }
 
-    // Update MD5 accumulator
-    upload_md5_ctx_.update(
+    u.md5_ctx.update(
         reinterpret_cast<const uint8_t*>(bin_data.data()), bin_len);
 
-    upload_received_ += bin_len;
-    upload_frame_count_++;
+    u.received += bin_len;
+    u.frame_count++;
 
     LOG_DEBUG("AT+UPLOAD: frame #%u OK, %zu bytes (total %lu/%lu)",
-              upload_frame_count_ - 1, bin_len,
-              (unsigned long)upload_received_,
-              (unsigned long)upload_expected_size_);
+              u.frame_count - 1, bin_len,
+              (unsigned long)u.received,
+              (unsigned long)u.expected_size);
 
-    return "OK " + std::to_string(upload_received_);
+    return "OK " + std::to_string(u.received);
 }
 
 // =============================================================================
@@ -182,56 +204,55 @@ std::string AtCommand::handle_upload_frame(const std::string& arg) {
 // =============================================================================
 
 std::string AtCommand::handle_uploaddone() {
-    if (!upload_active_ || !upload_file_) {
+    UploadState& u = upload_state();
+
+    if (!u.active || !u.file) {
         return "ERROR: no active upload";
     }
 
-    fclose(upload_file_);
-    upload_file_ = nullptr;
+    fclose(u.file);
+    u.file = nullptr;
 
-    // Check size
-    if (upload_received_ != upload_expected_size_) {
+    if (u.received != u.expected_size) {
         LOG_WARN("AT+UPLOADDONE: size mismatch (expected=%lu got=%lu)",
-                 (unsigned long)upload_expected_size_,
-                 (unsigned long)upload_received_);
+                 (unsigned long)u.expected_size,
+                 (unsigned long)u.received);
         std::ostringstream ss;
-        ss << "ERROR size mismatch expected=" << upload_expected_size_
-           << " got=" << upload_received_;
-        unlink(upload_tmp_path_.c_str());
-        upload_reset();
+        ss << "ERROR size mismatch expected=" << u.expected_size
+           << " got=" << u.received;
+        unlink(u.tmp_path.c_str());
+        u.reset();
         return ss.str();
     }
 
-    // Compute MD5 of uploaded file
-    std::string actual_md5 = upload_md5_ctx_.hex();
+    std::string actual_md5 = u.md5_ctx.hex();
 
-    if (actual_md5 != upload_expected_md5_) {
+    if (actual_md5 != u.expected_md5) {
         LOG_WARN("AT+UPLOADDONE: MD5 mismatch (expected=%s got=%s)",
-                 upload_expected_md5_.c_str(), actual_md5.c_str());
-        std::string result = "ERROR MD5 mismatch expected=" + upload_expected_md5_
+                 u.expected_md5.c_str(), actual_md5.c_str());
+        std::string result = "ERROR MD5 mismatch expected=" + u.expected_md5
                            + " got=" + actual_md5;
-        unlink(upload_tmp_path_.c_str());
-        upload_reset();
+        unlink(u.tmp_path.c_str());
+        u.reset();
         return result;
     }
 
-    // MD5 matches — rename to final name
-    std::string final_path = daemon_.config().upload_dir + "/" + upload_filename_;
-    if (rename(upload_tmp_path_.c_str(), final_path.c_str()) != 0) {
+    std::string final_path = daemon_.config().upload_dir + "/" + u.filename;
+    if (rename(u.tmp_path.c_str(), final_path.c_str()) != 0) {
         LOG_ERROR("AT+UPLOADDONE: rename failed");
-        unlink(upload_tmp_path_.c_str());
-        upload_reset();
+        unlink(u.tmp_path.c_str());
+        u.reset();
         return "ERROR: failed to save firmware file";
     }
 
     LOG_INFO("AT+UPLOADDONE: OK %s %lu bytes, md5=%s",
-             upload_filename_.c_str(),
-             (unsigned long)upload_received_,
+             u.filename.c_str(),
+             (unsigned long)u.received,
              actual_md5.c_str());
 
-    std::string result = "OK " + upload_filename_ + " "
-                       + std::to_string(upload_received_) + " " + actual_md5;
-    upload_reset();
+    std::string result = "OK " + u.filename + " "
+                       + std::to_string(u.received) + " " + actual_md5;
+    u.reset();
     return result;
 }
 
@@ -240,19 +261,21 @@ std::string AtCommand::handle_uploaddone() {
 // =============================================================================
 
 std::string AtCommand::handle_uploadcancel() {
-    if (!upload_active_) {
+    UploadState& u = upload_state();
+
+    if (!u.active) {
         return "OK no upload in progress";
     }
 
-    if (upload_file_) {
-        fclose(upload_file_);
-        upload_file_ = nullptr;
+    if (u.file) {
+        fclose(u.file);
+        u.file = nullptr;
     }
-    unlink(upload_tmp_path_.c_str());
+    unlink(u.tmp_path.c_str());
 
     LOG_INFO("AT+UPLOADCANCEL: upload of '%s' aborted (%lu bytes received)",
-             upload_filename_.c_str(), (unsigned long)upload_received_);
+             u.filename.c_str(), (unsigned long)u.received);
 
-    upload_reset();
+    u.reset();
     return "OK";
 }

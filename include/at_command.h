@@ -68,21 +68,6 @@ private:
     std::string handle_uploaddone();
     std::string handle_uploadcancel();
 
-    // Upload state
-    bool upload_active_ = false;
-    std::string upload_filename_;
-    std::string upload_tmp_path_;
-    uint64_t upload_expected_size_ = 0;
-    uint64_t upload_received_ = 0;
-    uint32_t upload_frame_count_ = 0;
-    FILE* upload_file_ = nullptr;
-
-    // Integrity state
-    std::string upload_expected_md5_;      // MD5 of entire file (from PREUPLOAD)
-    MD5 upload_md5_ctx_;                   // incremental MD5 accumulator
-
-    void upload_reset();
-
     // Parse AT+<CMD>=<arg> → ("CMD", "arg").  If no '=', arg is empty.
     static bool parse_at(const std::string& cmd,
                          std::string& out_cmd, std::string& out_arg);
