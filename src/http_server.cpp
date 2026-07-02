@@ -175,6 +175,20 @@ MHD_Result HttpServer::accessHandler(void* cls,
         } else if (strcmp(url, "/api/reset") == 0 && strcmp(method, "POST") == 0) {
             state->type = ConnectionState::RequestType::RESET;
         }
+#ifndef NDEBUG
+        // Debug endpoints — only in Debug builds
+        else if (strcmp(url, "/api/debug/lock-serial") == 0 && strcmp(method, "POST") == 0) {
+            delete state;
+            *req_cls = nullptr;
+            LOG_INFO("Debug: force-acquiring lock for SERIAL");
+            if (self->daemon().try_acquire(SerialDaemon::Owner::SERIAL)) {
+                return HttpServer::sendJson(connection, 200,
+                    R"({"status":"ok","message":"Lock acquired for SERIAL"})");
+            }
+            return HttpServer::sendJson(connection, 409,
+                R"({"status":"error","message":"Lock is already held"})");
+        }
+#endif
 
         *req_cls = state;
         return MHD_YES;

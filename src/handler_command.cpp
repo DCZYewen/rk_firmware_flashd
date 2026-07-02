@@ -36,23 +36,38 @@ MHD_Result handleCommand(void* cls, MHD_Connection* connection,
 
         std::string cmd = j["cmd"];
 
-        // Session-based lock: HTTP holds lock across multiple requests until AT+RESET.
-        if (!server->daemon().is_busy()) {
-            // Nobody holds the lock — try to acquire for HTTP.
-            if (!server->daemon().try_acquire(SerialDaemon::Owner::HTTP)) {
+        // Extract AT command action for special handling.
+        // Commands that are safe regardless of lock owner bypass the session check.
+        bool bypass_lock = false;
+        if (cmd.size() > 4 && cmd[0] == 'A' && cmd[1] == 'T' && cmd[2] == '+') {
+            std::string action;
+            auto eq = cmd.find('=', 3);
+            action = cmd.substr(3, eq == std::string::npos ? eq : eq - 3);
+            // FORCERESET always works. RESET should reach the processor so
+            // AtCommand can return the proper "only owner can reset" error.
+            if (action == "FORCERESET" || action == "RESET")
+                bypass_lock = true;
+        }
+
+        if (!bypass_lock) {
+            // Session-based lock: HTTP holds lock across multiple requests until AT+RESET.
+            if (!server->daemon().is_busy()) {
+                // Nobody holds the lock — try to acquire for HTTP.
+                if (!server->daemon().try_acquire(SerialDaemon::Owner::HTTP)) {
+                    json resp;
+                    resp["status"] = "busy";
+                    resp["message"] = "serial daemon is busy, wait for AT+RESET";
+                    return HttpServer::sendJson(connection, 503, resp.dump());
+                }
+            } else if (server->daemon().owner() != SerialDaemon::Owner::HTTP) {
+                // Lock held by SERIAL — busy.
                 json resp;
                 resp["status"] = "busy";
                 resp["message"] = "serial daemon is busy, wait for AT+RESET";
                 return HttpServer::sendJson(connection, 503, resp.dump());
             }
-        } else if (server->daemon().owner() != SerialDaemon::Owner::HTTP) {
-            // Lock held by SERIAL — busy.
-            json resp;
-            resp["status"] = "busy";
-            resp["message"] = "serial daemon is busy, wait for AT+RESET";
-            return HttpServer::sendJson(connection, 503, resp.dump());
+            // else: HTTP already owns the lock — continue session.
         }
-        // else: HTTP already owns the lock — continue session.
 
         // Process the command under the lock.
         AtCommand at_cmd(server->daemon());
