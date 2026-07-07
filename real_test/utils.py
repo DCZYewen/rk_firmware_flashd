@@ -9,7 +9,15 @@ import os
 import traceback
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8080"
-UPLOAD_DIR = os.environ.get("UPLOAD_DIR", os.path.expanduser("~"))
+
+# Detect upload dir from daemon /api/status, fallback to env var or home
+try:
+    url = BASE + "/api/status"
+    with urllib.request.urlopen(url, timeout=5) as resp:
+        _status = json.loads(resp.read())
+    UPLOAD_DIR = _status.get("upload_dir", os.environ.get("UPLOAD_DIR", os.path.expanduser("~")))
+except Exception:
+    UPLOAD_DIR = os.environ.get("UPLOAD_DIR", os.path.expanduser("~"))
 
 passed = 0
 failed = 0
