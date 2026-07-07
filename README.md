@@ -48,7 +48,10 @@ test/              — C++ unit tests (CTest)
 real_test/         — Python integration tests
 3rd_party/         — nlohmann/json, libmicrohttpd, libserialport
 cmake/toolchain/   — Cross-compilation toolchain files
+docs/              — Developer documentation (AT commands, HTTP API, architecture)
 project/           — API docs, bug history, design plan
 ```
 
-See `project/http_api_doc.md` for full API reference and `project/plan.md` for detailed design.
+See `docs/at_commands.md` for AT command reference with implementation notes,
+`docs/http_endpoints.md` for HTTP endpoint reference with implementation notes,
+`docs/architecture.md` for the overall design and thread model.
