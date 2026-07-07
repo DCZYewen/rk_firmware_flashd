@@ -37,6 +37,7 @@ public:
 
 private:
     sp_port* port_ = nullptr;
+    int raw_fd_ = -1;           // fallback fd when libserialport fails (PTY etc.)
     std::string device_;
     mutable std::mutex mutex_;
     std::string read_buf_;

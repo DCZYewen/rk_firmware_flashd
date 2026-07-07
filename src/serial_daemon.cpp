@@ -159,11 +159,14 @@ void SerialDaemon::start_reader(CommandHandler handler) {
 
             LOG_DEBUG("SerialDaemon: reader got '%s'", line.c_str());
 
-            // Try to acquire the global lock for SERIAL.
+            // Acquire or reuse the lock for SERIAL.
             if (!try_acquire(Owner::SERIAL)) {
-                // HTTP daemon holds the lock — tell the device.
-                writeLine("BUSY");
-                continue;
+                if (owner() != Owner::SERIAL) {
+                    // HTTP holds the lock — tell the device.
+                    writeLine("BUSY");
+                    continue;
+                }
+                // SERIAL already owns the lock — proceed.
             }
 
             // Process the command under the lock.
