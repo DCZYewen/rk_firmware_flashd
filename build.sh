@@ -51,9 +51,25 @@ while [[ $# -gt 0 ]]; do
             CROSS_TOOLCHAIN="$1"
             CROSS_TOOLCHAIN="${CROSS_TOOLCHAIN/#\~/$HOME}"
             ;;
+        --compile-commands)
+            # Just symlink compile_commands.json for clangd without building.
+            # CMAKE_EXPORT_COMPILE_COMMANDS is ON by default in CMakeLists.txt.
+            if [ -f "build/compile_commands.json" ]; then
+                ln -sf build/compile_commands.json compile_commands.json
+                echo "=== Symlinked compile_commands.json (native build) ==="
+                exit 0
+            elif [ -f "build_cross/compile_commands.json" ]; then
+                ln -sf build_cross/compile_commands.json compile_commands.json
+                echo "=== Symlinked compile_commands.json (cross build) ==="
+                exit 0
+            else
+                echo "No existing compile_commands.json found — run a build first."
+                exit 1
+            fi
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [clean] [Debug|Release] [-allow-rce] [--allow-reboot] [--cross-toolchain=PATH]"
+            echo "Usage: $0 [clean] [Debug|Release] [-allow-rce] [--allow-reboot] [--cross-toolchain=PATH] [--compile-commands]"
             exit 1
             ;;
     esac
@@ -104,15 +120,22 @@ echo "    RCE=${ENABLE_RCE}, REBOOT=${ENABLE_REBOOT}"
 cmake -B "$BUILD_DIR" "${CMAKE_ARGS[@]}"
 cmake --build "$BUILD_DIR" -j"$(nproc)"
 
+BINARY="$BUILD_DIR/rk_firmware_flashd"
+
 # Strip release binary
 if [[ "$BUILD_TYPE" == "Release" ]]; then
-    BINARY="$BUILD_DIR/rk_firmware_flashd"
     if command -v strip &>/dev/null && [[ -f "$BINARY" ]]; then
         strip "$BINARY"
         echo "=== Stripped release binary ==="
     fi
 fi
 
+# Symlink compile_commands.json for clangd
+if [ -f "$BUILD_DIR/compile_commands.json" ]; then
+    ln -sf "$BUILD_DIR/compile_commands.json" compile_commands.json
+    echo "=== Symlinked compile_commands.json for clangd ==="
+fi
+
 echo ""
 echo "=== Build complete: ${BUILD_DIR}/rk_firmware_flashd ==="
-file "$BUILD_DIR/rk_firmware_flashd"
+file "$BINARY"
