@@ -159,7 +159,6 @@ bool SerialPort::readLine(std::string& response, int timeout_ms) {
     while (true) {
         auto elapsed = std::chrono::steady_clock::now() - start;
         if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() >= timeout_ms) {
-            LOG_WARN("Serial read timeout");
             return false;
         }
 
